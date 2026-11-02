@@ -75,16 +75,20 @@ def build_jobs(pay):
         ev = day.get("e") or []
         wd = WD[datetime.date(*map(int, d.split("-"))).weekday()]
         lines = ["📋 جدول %s %s" % (wd, d)]
-        for s, dur, title, meta, done, alert in ev:
+        for x in ev:
+            s, dur, title, meta, done, alert = x[:6]
             lines.append("%s–%s  %s%s" % (hm(s), hm(s + dur), title, " ✓" if done else ""))
         jobs.append((z, "digest", "\n".join(lines)))
-        for s, dur, title, meta, done, alert in ev:
+        for x in ev:
+            s, dur, title, meta, done, alert = x[:6]
             if not alert or done:
                 continue
             txt = "⏰ %s–%s\n%s" % (hm(s), hm(s + dur), title)
             if meta:
                 txt += "\n" + meta
-            jobs.append((z + int(s) * 60 - LEAD, "alert", txt))
+            # مهمة أُضيفت بعد فوات موعد تنبيهها: يعلّمها التطبيق «عاجلة» فتُرسل فور المزامنة
+            urgent = len(x) > 6 and x[6]
+            jobs.append((z + int(s) * 60 - LEAD, "alert!" if urgent else "alert", txt))
     if days:
         last = days[-1]
         jobs.append((int(last["z"]) + 12 * H, "stale",
@@ -107,7 +111,9 @@ def main():
         return 1
     pay = json.loads(raw)
     print("synced: %s · days: %d" % (time.strftime("%Y-%m-%d %H:%M", time.gmtime(pay.get("gen", 0))), len(pay.get("days") or [])))
-    jobs = [j for j in build_jobs(pay) if ws <= j[0] < we]
+    dispatch = os.environ.get("GH_EVENT") == "workflow_dispatch"
+    jobs = [j for j in build_jobs(pay)
+            if ws <= j[0] < we or (dispatch and j[1] == "alert!" and now - LATE <= j[0] < ws)]
     print("in window: %d" % len(jobs))
     sent = 0
     for t, kind, text in jobs:
