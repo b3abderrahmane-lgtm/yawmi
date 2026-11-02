@@ -3142,7 +3142,7 @@ async function loadGh(){try{const r=await Store.get('ghsync');if(r)ghCfg={...ghC
 async function saveGh(){await Store.set('ghsync',JSON.stringify(ghCfg));}
 const plain=t=>String(t==null?'':t).replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim();
 function alertWorthy(sp){const id=sp.id;
-  if(id==='dropnote'||id==='sleep0'||id.startsWith('work')||/_c\d+$/.test(id))return false;
+  if(id==='dropnote'||id==='sleep0'||id.startsWith('work')||(!id.startsWith('cust_')&&/_c\d+$/.test(id)))return false;
   return sp.sort>=0&&sp.sort<1440;}
 async function buildAlerts(){
   const t0=new Date();const pre=[];
@@ -3180,6 +3180,8 @@ async function ghSync(force){
     const pay=await buildAlerts();const h=ghHash(JSON.stringify(pay.days));
     if(!force&&h===ghCfg.hash)return;
     const el=document.getElementById('ghSt');if(el){el.className='gh-st';el.textContent='⏳ جارٍ المزامنة…';}
+    const nowS=Date.now()/1000,keys=[],prev=new Set(ghCfg.keys||[]);
+    pay.days.forEach(d=>d.e.forEach(x=>{if(!x[5]||x[4])return;const k=d.d+'|'+x[0]+'|'+x[2];keys.push(k);const t=d.z+x[0]*60-300;if(!prev.has(k)&&t<=nowS&&t>nowS-1200)x[6]=1;}));
     const value=JSON.stringify(pay);
     let r=await ghApi('/actions/variables/'+GH_VAR,'PATCH',{name:GH_VAR,value});
     if(r.status===404)r=await ghApi('/actions/variables','POST',{name:GH_VAR,value});
@@ -3188,7 +3190,7 @@ async function ghSync(force){
     const r2=await ghApi('/actions/workflows/'+GH_WF+'/dispatches','POST',{ref:'main',inputs:{from:String(Math.floor(Date.now()/1000))}});
     const n=pay.days.reduce((a,d)=>a+d.e.filter(x=>x[5]&&!x[4]).length,0);
     const t=new Date();
-    ghCfg.hash=h;ghCfg.at=Date.now();ghCfg.ok=r2.ok;
+    ghCfg.hash=h;ghCfg.keys=keys;ghCfg.at=Date.now();ghCfg.ok=r2.ok;
     ghCfg.msg=(r2.ok?'✓ ':'⚠️ ')+'آخر مزامنة '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0')+' · '+pay.days.length+' يوماً · '+n+' تنبيهاً'+(r2.ok?'':' — رُفع الجدول لكن تعذّر تشغيل المهمة: '+ghErr(r2.status));
   }catch(e){ghCfg.ok=false;ghCfg.msg='✗ '+(e&&e.message&&!/fetch/i.test(e.message)?e.message:'لا اتصال بالإنترنت');}
   finally{ghBusy=false;await saveGh().catch(()=>{});ghShow();}
