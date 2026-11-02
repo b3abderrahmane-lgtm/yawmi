@@ -1,0 +1,34 @@
+name: Yawmi Alerts
+
+on:
+  schedule:
+    - cron: '35 * * * *'
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'بداية النافذة (يرسلها التطبيق تلقائياً)'
+        required: false
+        default: ''
+
+concurrency:
+  group: yawmi-alerts
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: notify.py
+          sparse-checkout-cone-mode: false
+      - name: Alerts
+        run: python3 notify.py
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+          YAWMI_EVENTS: ${{ vars.YAWMI_EVENTS }}
+          GH_EVENT: ${{ github.event_name }}
+          FROM: ${{ inputs.from }}
+          LEAD_MIN: '5'
